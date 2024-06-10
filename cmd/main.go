@@ -6,10 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/eiannone/keyboard"
+	"github.com/inancgumus/screen"
 	"github.com/sqweek/dialog"
 )
 
@@ -36,7 +37,6 @@ func searchFiles(root string, pattern string, wg *sync.WaitGroup, filesChan chan
 func printFiles(filesChan *chan string) []string {
 	files := make([]string, 0, 10)
 	for file := range *filesChan {
-		fmt.Println("Found :", file)
 		files = append(files, file)
 	}
 
@@ -50,20 +50,85 @@ func openFile(filePath string) error {
 	return cmd.Run()
 }
 
-func main() {
+func chooseFiles(files []string) {
+	fmt.Println("Use arrow keys to select a file and press Enter to open it.")
+
+	if err := keyboard.Open(); err != nil {
+		panic(err)
+	}
+	defer keyboard.Close()
+
+	selectedIndex := 0
+
+	for {
+		screen.Clear()
+		screen.MoveTopLeft()
+		
+		fmt.Println("\nFiles found:")
+		for i, file := range files {
+			prefix := " "
+			if i == selectedIndex {
+				prefix = ">"
+			}
+			fmt.Printf("%s %d: %s\n", prefix, i+1, file)
+		}
+
+		_, key, err := keyboard.GetKey()
+		if err != nil {
+			fmt.Printf("Error reading key: %v\n", err)
+			continue
+		}
+
+		if key == keyboard.KeyArrowUp {
+			if selectedIndex > 0 {
+				selectedIndex--
+			}
+		} else if key == keyboard.KeyArrowDown {
+			if selectedIndex < len(files)-1 {
+				selectedIndex++
+			}
+		} else if key == keyboard.KeyEnter {
+			fileToOpen := files[selectedIndex]
+
+			if selectedIndex == len(files) - 1 {
+				break
+			}
+
+			fmt.Printf("Opening file: %s\n", fileToOpen)
+			err = openFile(fileToOpen)
+			if err != nil {
+				fmt.Printf("Error opening file: %v\n", err)
+			}
+			
+		}
+	}
+}
+
+func selectDir() string {
 	fmt.Println("Select directory")
 
 	root, err := dialog.Directory().Title("Select Directory").Browse()
 	if err != nil {
 		fmt.Printf("Error selecting directory: %v\n", err)
-		return
+		selectDir()
 	}
 
+	return root
+}
+
+func selectFilePtr() string {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Print("Enter file name \n")
 	pattern, _ := reader.ReadString('\n')
 	pattern = strings.TrimSpace(pattern)
+
+	return pattern
+}
+
+func main() {
+	root := selectDir()
+	pattern := selectFilePtr()
 
     filesChan := make(chan string)
     var wg sync.WaitGroup
@@ -83,33 +148,9 @@ func main() {
 		fmt.Println("Files not found")
 	}
 
-	for {
-		fmt.Println("\nFiles found:")
-		for i, file := range files {
-			fmt.Printf("%d: %s\n", i+1, file)
-		}
+	files = append(files, "Quit")
 
-		fmt.Print("Enter the number of the file to open (or 'q' to quit): ")
-		choice, _ := reader.ReadString('\n')
-		choice = strings.TrimSpace(choice)
-
-		if choice == "q" {
-			break
-		}
-
-		index, err := strconv.Atoi(choice)
-		if err != nil || index < 1 || index > len(files) {
-			fmt.Println("Invalid choice, please try again.")
-			continue
-		}
-
-		fileToOpen := files[index-1]
-		fmt.Printf("Opening file: %s\n", fileToOpen)
-		err = openFile(fileToOpen)
-		if err != nil {
-			fmt.Printf("Error opening file: %v\n", err)
-		}
-	}
+	chooseFiles(files)
 }
 
 
