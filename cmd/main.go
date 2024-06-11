@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/eiannone/keyboard"
-	"github.com/inancgumus/screen"
 	"github.com/sqweek/dialog"
 )
 
@@ -61,9 +60,8 @@ func chooseFiles(files []string) {
 	selectedIndex := 0
 
 	for {
-		screen.Clear()
-		screen.MoveTopLeft()
-		
+		clearScreen()
+
 		fmt.Println("\nFiles found:")
 		for i, file := range files {
 			prefix := " "
@@ -124,6 +122,10 @@ func selectFilePtr() string {
 	pattern = strings.TrimSpace(pattern)
 
 	return pattern
+}
+
+func clearScreen() {
+	fmt.Print("\033[H\033[2J")
 }
 
 func main() {
